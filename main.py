@@ -350,7 +350,7 @@ def predict_input_fn(predict_from_file):
   def decode_record(record):
     src = tf.string_split([record]).values
     src = tf.string_to_number(src, out_type=tf.int32)
-      return src, tf.constant([SOS], dtype=tf.int32)
+    return src, tf.constant([SOS], dtype=tf.int32)
   dataset = dataset.map(decode_record)
   dataset = dataset.batch(FLAGS.batch_size)
   iterator = dataset.make_one_shot_iterator()
