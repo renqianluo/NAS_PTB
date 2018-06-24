@@ -262,7 +262,7 @@ def train(params):
           log_string += "learning_rate={:<8.4f} ".format(learning_rate_v)
           log_string += "mins={:<10.2f}".format((curr_time - start_time) / 60)
           tf.logging.info(log_string)
-        if global_step_v % params['batches_per_epoch'] == 0: 
+        if global_step_v % params['batches_per_epoch'] == 0:
           test_ops = [
             test_loss, test_predict_value, test_ground_truth_value
           ]
@@ -275,8 +275,10 @@ def train(params):
             test_loss_list.append(test_loss_v.flatten())
             test_predict_value_list.append(test_predict_value_v.flatten())
             test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
-          predictions_list = np.array(test_predict_value_list)
-          targets_list = np.array(test_ground_truth_value_list)
+          predictions_list = np.array(test_predict_value_list).flatten()
+          targets_list = np.array(test_ground_truth_value_list).flatten()
+          import pdb
+          pdb.set_trace()
           mse = ((predictions_list -  targets_list) ** 2).mean(axis=0)
           pairwise_acc = pairwise_accuracy(targets_list, predictions_list)
           test_time = time.time() - test_start_time
@@ -404,7 +406,7 @@ def pairwise_accuracy(la, lb):
       if la[i] < la[j] and lb[i] < lb[j]:
         count += 1
       total += 1
-  print('N = {}, total = {}, count = {}'.format(N, total, count))
+  tf.logging.info('N = {}, total = {}, count = {}'.format(N, total, count))
   return float(count) / total
 
 def main(unparsed):
