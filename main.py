@@ -277,8 +277,6 @@ def train(params):
             test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
           predictions_list = np.array(test_predict_value_list).flatten()
           targets_list = np.array(test_ground_truth_value_list).flatten()
-          import pdb
-          pdb.set_trace()
           mse = ((predictions_list -  targets_list) ** 2).mean(axis=0)
           pairwise_acc = pairwise_accuracy(targets_list, predictions_list)
           test_time = time.time() - test_start_time
