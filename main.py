@@ -385,7 +385,7 @@ def predict(params):
       for res in predict_value_list:
         f.write('%s\n' % (res))
     with tf.gfile.Open(output_filename+'.arch', 'w') as f:
-      for res in sample_id_list
+      for res in sample_id_list:
         f.write('%s\n' % (res))
     with tf.gfile.Open(output_filename+'.new_arch', 'w') as f:
       for res in new_sample_id_list:
