@@ -109,7 +109,7 @@ class Model(object):
     self.build_graph(scope, reuse)
 
   
-  def build_graph(self, scope=None, reuse=None):
+  def build_graph(self, scope=None, reuse=False):
     tf.logging.info("# creating %s graph ..." % self.mode)
     # Encoder
     with tf.variable_scope(scope, reuse=reuse):
