@@ -376,7 +376,7 @@ def predict(params):
         new_ids.append(new_sample_id_v)
     
     if FLAGS.predict_to_file:
-      output_filename = predict_to_file
+      output_filename = FLAGS.predict_to_file
     else:
       output_filename = '%s.result' % FLAGS.predict_from_file
 
