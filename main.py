@@ -269,7 +269,7 @@ def train(params):
           log_string += "learning_rate={:<8.4f} ".format(learning_rate_v)
           log_string += "mins={:<10.2f}".format((curr_time - start_time) / 60)
           tf.logging.info(log_string)
-        if global_step_v % params['batches_per_epoch'] == 0:
+        if global_step_v % (params['batches_per_epoch'] * params['eval_frequency']) == 0:
           test_ops = [
             test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value
           ]
