@@ -235,7 +235,7 @@ def train(params):
   with g.as_default():
     encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target = input_fn(params, 'train', params['data_dir'], params['batch_size'], None)
     encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target = input_fn(params, 'test', params['data_dir'], _NUM_SAMPLES['test'], None)
-    train_cross_entropy, train_loss, learning_rate, train_op, global_step = get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target, params)
+    train_mse, train_cross_entropy, train_loss, learning_rate, train_op, global_step = get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target, params)
     _log_variable_sizes(tf.trainable_variables(), 'Trainable Variables')
     test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
     saver = tf.train.Saver(max_to_keep=10)
