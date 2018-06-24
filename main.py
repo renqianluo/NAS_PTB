@@ -371,9 +371,9 @@ def predict(params):
       while True:
         run_ops = [predict_value, sample_id, new_sample_id]
         predict_value_v, sample_id_v, new_sample_id_v = sess.run(run_ops)
-        predict_value_list.append(predict_value_v.flatten())
-        sample_id_list.append(sample_id_v.flatten())
-        new_sample_id_list.append(new_sample_id_v.flatten())
+        predict_value_list.extend(predict_value_v.flatten())
+        sample_id_list.extend(sample_id_v.flatten())
+        new_sample_id_list.extend(new_sample_id_v.flatten())
 
     if FLAGS.predict_to_file:
       output_filename = FLAGS.predict_to_file
