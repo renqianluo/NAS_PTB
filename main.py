@@ -156,14 +156,14 @@ def get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input
     opt = tf.train.AdadeltaOptimizer(learning_rate=learning_rate)
   tf.summary.scalar("learning_rate", learning_rate)
 
-  my_encoder = encoder.Model(encoder_train_input, encoder_train_target, params, mode, 'Encoder')
+  my_encoder = encoder.Model(encoder_train_input, encoder_train_target, params, tf.estimator.ModeKeys.TRAIN, 'Encoder')
   encoder_outputs = my_encoder.encoder_outputs
   #encoder_state = my_encoder.encoder_state
   encoder_state = my_encoder.arch_emb
   encoder_state.set_shape([None, params['decoder_hidden_size']])
   encoder_state = tf.contrib.rnn.LSTMStateTuple(encoder_state, encoder_state)
   encoder_state = (encoder_state,) * params['decoder_num_layers']
-  my_decoder = decoder.Model(encoder_outputs, encoder_state, decoder_train_input, decoder_train_target, params, mode, 'Decoder')
+  my_decoder = decoder.Model(encoder_outputs, encoder_state, decoder_train_input, decoder_train_target, params, tf.estimator.ModeKeys.EVAL, 'Decoder')
   encoder_loss = my_encoder.loss
   decoder_loss = my_decoder.loss
     
@@ -189,7 +189,7 @@ def get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, de
   encoder_state.set_shape([None, params['decoder_hidden_size']])
   encoder_state = tf.contrib.rnn.LSTMStateTuple(encoder_state, encoder_state)
   encoder_state = (encoder_state,) * params['decoder_num_layers']
-  my_decoder = decoder.Model(encoder_outputs, encoder_state, decoder_test_input, decoder_test_target, params, mode, 'Decoder')
+  my_decoder = decoder.Model(encoder_outputs, encoder_state, decoder_test_input, decoder_test_target, params, tf.estimator.ModeKeys.EVAL, 'Decoder')
   encoder_loss = my_encoder.loss
   decoder_loss = my_decoder.loss
     
@@ -203,7 +203,7 @@ def get_predict_ops(encoder_predict_input, params, reuse=False):
   encoder_predict_target = None
   decoder_predict_input = None
   decoder_predict_target = None
-  my_encoder = encoder.Model(encoder_predict_input, encoder_predict_target, params, mode, 'Encoder')
+  my_encoder = encoder.Model(encoder_predict_input, encoder_predict_target, params, tf.estimator.ModeKeys.PREDICT, 'Encoder')
   encoder_outputs = my_encoder.encoder_outputs
   #encoder_state = my_encoder.encoder_state
   encoder_state = my_encoder.arch_emb
