@@ -175,16 +175,11 @@ class Model(object):
     tf.summary.scalar("learning_rate", self.learning_rate),
     tf.summary.scalar("total_loss", self.total_loss),
     
-    return {
-      'train_op' : self.train_op,
-      'loss' : self.total_loss,
-    }
+    return self.train_op, self.total_loss
 
   def eval(self):
     assert self.mode == tf.estimator.ModeKeys.EVAL
-    return {
-      'loss': self.total_loss,
-    }
+    return self.predict_value, self.total_loss
 
   def infer(self):
     assert self.mode == tf.estimator.ModeKeys.PREDICT
@@ -197,10 +192,4 @@ class Model(object):
     else:
       new_arch_emb = tf.reduce_mean(new_arch_outputs, axis=1)
     new_arch_emb = tf.nn.l2_normalize(new_arch_emb, dim=-1)
-    return {
-      'grads_on_outputs' : grads_on_outputs,
-      'new_arch_emb' : new_arch_emb,
-      'new_arch_outputs' : new_arch_outputs,
-      'arch_emb' : self.arch_emb,
-      'predict_value' : self.predict_value,
-    }
+    return self.arch_emb, self.predict_value, new_arch_emb, new_arch_outputs

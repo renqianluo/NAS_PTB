@@ -184,7 +184,6 @@ def get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input
 def get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, reuse=False):
   my_encoder = encoder.Model(encoder_test_input, encoder_test_target, params, tf.estimator.ModeKeys.EVAL, 'Encoder', reuse)
   encoder_outputs = my_encoder.encoder_outputs
-  #encoder_state = my_encoder.encoder_state
   encoder_state = my_encoder.arch_emb
   encoder_state.set_shape([None, params['decoder_hidden_size']])
   encoder_state = tf.contrib.rnn.LSTMStateTuple(encoder_state, encoder_state)
@@ -192,6 +191,7 @@ def get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, de
   my_decoder = decoder.Model(encoder_outputs, encoder_state, decoder_test_input, decoder_test_target, params, tf.estimator.ModeKeys.EVAL, 'Decoder', reuse)
   encoder_loss = my_encoder.loss
   decoder_loss = my_decoder.loss
+  predict_value = my_encoder.predict_value
     
   total_loss = params['trade_off'] * encoder_loss + (1 - params['trade_off']) * decoder_loss + params['weight_decay'] * tf.add_n(
       [tf.nn.l2_loss(v) for v in tf.trainable_variables()])
@@ -205,19 +205,14 @@ def get_predict_ops(encoder_predict_input, params, reuse=False):
   decoder_predict_target = None
   my_encoder = encoder.Model(encoder_predict_input, encoder_predict_target, params, tf.estimator.ModeKeys.PREDICT, 'Encoder', reuse)
   encoder_outputs = my_encoder.encoder_outputs
-  #encoder_state = my_encoder.encoder_state
   encoder_state = my_encoder.arch_emb
   encoder_state.set_shape([None, params['decoder_hidden_size']])
   encoder_state = tf.contrib.rnn.LSTMStateTuple(encoder_state, encoder_state)
   encoder_state = (encoder_state,) * params['decoder_num_layers']
   my_decoder = decoder.Model(encoder_outputs, encoder_state, decoder_predict_input, decoder_predict_target, params, tf.estimator.ModeKeys.PREDICT, 'Decoder', reuse)
   res = my_encoder.infer()
-  predict_value = res['predict_value']
-  arch_emb = res['arch_emb']
-  new_arch_emb = res['new_arch_emb']
-  new_arch_outputs = res['new_arch_outputs']
-  res = my_decoder.decode()
-  sample_id = res['sample_id']
+  predict_value, arch_emb, new_arch_emb, new_arch_outputs = my_encoder.infer()
+  sample_id = my_decoder.decode()
 
   encoder_state = new_arch_emb
   encoder_state.set_shape([None, params['decoder_hidden_size']])
@@ -225,8 +220,7 @@ def get_predict_ops(encoder_predict_input, params, reuse=False):
   encoder_state = (encoder_state,) * params['decoder_num_layers']
   tf.get_variable_scope().reuse_variables()
   my_decoder = decoder.Model(new_arch_outputs, encoder_state, decoder_preidct_input, decoder_predict_target, params, mode, 'Decoder')
-  res = my_decoder.decode()
-  new_sample_id = res['sample_id']
+  new_sample_id = my_decoder.decode()
 
   return predict_value, sample_id, new_sample_id
 

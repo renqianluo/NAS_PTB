@@ -448,32 +448,22 @@ class Model(object):
     tf.summary.scalar("learning_rate", self.learning_rate),
     tf.summary.scalar("train_loss", self.total_loss),
 
-    return {
-      'train_op': self.train_op, 
-      'loss' : self.total_loss}
+    return self.train_op, self.total_loss
 
   def eval(self):
     assert self.mode == tf.estimator.ModeKeys.EVAL
-    return {
-      'loss' : self.total_loss,
-    }
+    return self.total_loss
 
   def infer(self):
     assert self.mode == tf.estimator.ModeKeys.PREDICT
-    return {
-      'logits' : self.logits,
-      'sample_id' : self.sample_id,
-    }
+    return self.logits, self.sample_id
 
   def decode(self):
-    res = self.infer()
-    sample_id = res['sample_id']
+    _, sample_id = self.infer()
     # make sure outputs is of shape [batch_size, time, 1]
     if self.time_major:
       try:
         sample_id = tf.transpose(sample_id, [1,0])
       except:
         sample_id = tf.transpose(sample_id, [1,0,2])
-    return {
-      'sample_id' : sample_id
-    }
+    return sample_id
