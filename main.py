@@ -215,7 +215,7 @@ def get_predict_ops(encoder_predict_input, decoder_predict_input, params, reuse=
   encoder_state = (encoder_state,) * params['decoder_num_layers']
   my_decoder = decoder.Model(encoder_outputs, encoder_state, decoder_predict_input, decoder_predict_target, params, tf.estimator.ModeKeys.PREDICT, 'Decoder', reuse)
   res = my_encoder.infer()
-  predict_value, arch_emb, new_arch_emb, new_arch_outputs = my_encoder.infer()
+  arch_emb, predict_value, new_arch_emb, new_arch_outputs = my_encoder.infer()
   sample_id = my_decoder.decode()
 
   encoder_state = new_arch_emb
