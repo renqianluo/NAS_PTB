@@ -383,12 +383,15 @@ def predict(params):
     tf.logging.info('Writing results into {0}'.format(output_filename))
     with tf.gfile.Open(output_filename+'.perf', 'w') as f:
       for res in predict_value_list:
+        res = ' '.join(map(str, res))
         f.write('%s\n' % (res))
     with tf.gfile.Open(output_filename+'.arch', 'w') as f:
       for res in sample_id_list:
+        res = ' '.join(map(str, res))
         f.write('%s\n' % (res))
     with tf.gfile.Open(output_filename+'.new_arch', 'w') as f:
       for res in new_sample_id_list:
+        res = ' '.join(map(str, res))
         f.write('%s\n' % (res))
 
 
