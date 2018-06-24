@@ -340,7 +340,8 @@ class Model(object):
                target,
                params,
                mode,
-               scope=None):
+               scope=None,
+               reuse=False):
     """Create the model."""
     self.params = params
     self.encoder_outputs = encoder_outputs
@@ -364,12 +365,12 @@ class Model(object):
     tf.get_variable_scope().set_initializer(initializer)
 
     ## Build graph
-    self.build_graph(scope=scope)
+    self.build_graph(scope, reuse)
 
-  def build_graph(self, scope=None):
+  def build_graph(self, scope=None, reuse=False):
     tf.logging.info("# creating %s graph ..." % self.mode)
     ## Decoder
-    with tf.variable_scope(scope):
+    with tf.variable_scope(scope, reuse):
       # Embeddings
       self.W_emb = tf.get_variable('W_emb', [self.vocab_size, self.hidden_size])
       # Projection
