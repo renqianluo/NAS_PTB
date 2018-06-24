@@ -204,9 +204,8 @@ def get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, de
   return cross_entropy, total_loss, predict_value, encoder_test_target
 
 
-def get_predict_ops(encoder_predict_input, params, reuse=False):
+def get_predict_ops(encoder_predict_input, decoder_predict_input, params, reuse=False):
   encoder_predict_target = None
-  decoder_predict_input = None
   decoder_predict_target = None
   my_encoder = encoder.Model(encoder_predict_input, encoder_predict_target, params, tf.estimator.ModeKeys.PREDICT, 'Encoder', reuse)
   encoder_outputs = my_encoder.encoder_outputs
@@ -362,8 +361,8 @@ def predict_input_fn(predict_from_file):
 def predict(params):
   g = tf.Graph()
   with g.as_default():
-    encoder_predict_input, decoder_predict_target = predict_input_fn(FLAGS.predict_from_file)
-    predict_value, sample_id, new_sample_id = get_predict_ops(encoder_predict_input, params)
+    encoder_predict_input, decoder_predict_input = predict_input_fn(FLAGS.predict_from_file)
+    predict_value, sample_id, new_sample_id = get_predict_ops(encoder_predict_input, decoder_predict_input, params)
     tf.logging.info('Starting Session')
     config = tf.ConfigProto(allow_soft_placement=True)
     results, new_ids, perfs = [], [], []
