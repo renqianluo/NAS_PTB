@@ -345,6 +345,20 @@ def test(params):
         log_string += "secs={:<10.2f}".format((test_time))
         tf.logging.info(log_string)
 
+def predict_input_fn(predict_from_file):
+  dataset = tf.data.TextLineDataset(predict_from_file)
+  def decode_record(record):
+    src = tf.string_split([record]).values
+    src = tf.string_to_number(src, out_type=tf.int32)
+      return src, tf.constant([SOS], dtype=tf.int32)
+  dataset = dataset.map(decode_record)
+  dataset = dataset.batch(FLAGS.batch_size)
+  iterator = dataset.make_one_shot_iterator()
+  inputs, targets_inputs = iterator.get_next()
+  assert inputs.shape.ndims == 2
+  return inputs, targets_inputs
+
+
 def predict(params):
   g = tf.Graph()
   with g.as_default():
