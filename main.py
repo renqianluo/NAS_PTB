@@ -365,30 +365,30 @@ def predict(params):
     predict_value, sample_id, new_sample_id = get_predict_ops(encoder_predict_input, decoder_predict_input, params)
     tf.logging.info('Starting Session')
     config = tf.ConfigProto(allow_soft_placement=True)
-    results, new_ids, perfs = [], [], []
+    predict_value_list, sample_id_list, new_sample_id_list = [], [], []
     with tf.train.SingularMonitoredSession(
       config=config, checkpoint_dir=params['model_dir']) as sess:
       while True:
         run_ops = [predict_value, sample_id, new_sample_id]
         predict_value_v, sample_id_v, new_sample_id_v = sess.run(run_ops)
-        perfs.append(predict_value_v)
-        results.append(sample_id_v)
-        new_ids.append(new_sample_id_v)
-    
+        predict_value_list.append(predict_value_v.flatten())
+        sample_id_list.append(sample_id_v.flatten())
+        new_sample_id_list.append(new_sample_id_v.flatten())
+
     if FLAGS.predict_to_file:
       output_filename = FLAGS.predict_to_file
     else:
       output_filename = '%s.result' % FLAGS.predict_from_file
 
     tf.logging.info('Writing results into {0}'.format(output_filename))
-    with tf.gfile.Open(output_filename, 'w') as f:
-      for res in results:
+    with tf.gfile.Open(output_filename+'.perf', 'w') as f:
+      for res in predict_value_list:
+        f.write('%s\n' % (res))
+    with tf.gfile.Open(output_filename+'.arch', 'w') as f:
+      for res in sample_id_list
         f.write('%s\n' % (res))
     with tf.gfile.Open(output_filename+'.new_arch', 'w') as f:
-      for res in new_ids:
-        f.write('%s\n' % (res))
-    with tf.gfile.Open(output_filename+'.perf', 'w') as f:
-      for res in perfs:
+      for res in new_sample_id_list:
         f.write('%s\n' % (res))
 
 
