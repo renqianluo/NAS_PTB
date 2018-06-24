@@ -14,6 +14,7 @@ import six
 import json
 import collections
 import math
+import time
 
 _NUM_SAMPLES = {
   'train' : 10000,
