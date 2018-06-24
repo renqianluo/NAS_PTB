@@ -445,7 +445,7 @@ def main(unparsed):
       raise ValueError('No hparams.json found in {0}'.format(FLAGS.model_dir))
     with open(os.path.join(FLAGS.model_dir, 'hparams.json'), 'r') as f:
       params = json.load(f)
-    
+    test(params)
 
   elif FLAGS.mode == 'predict':
     if not os.path.exists(os.path.join(FLAGS.model_dir, 'hparams.json')):
