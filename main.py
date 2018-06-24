@@ -223,7 +223,7 @@ def get_predict_ops(encoder_predict_input, decoder_predict_input, params, reuse=
   encoder_state = tf.contrib.rnn.LSTMStateTuple(encoder_state, encoder_state)
   encoder_state = (encoder_state,) * params['decoder_num_layers']
   tf.get_variable_scope().reuse_variables()
-  my_decoder = decoder.Model(new_arch_outputs, encoder_state, decoder_predict_input, decoder_predict_target, params, mode, 'Decoder')
+  my_decoder = decoder.Model(new_arch_outputs, encoder_state, decoder_predict_input, decoder_predict_target, params, tf.estimator.ModeKeys.PREDICT, 'Decoder')
   new_sample_id = my_decoder.decode()
 
   return predict_value, sample_id, new_sample_id
