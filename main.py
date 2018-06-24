@@ -168,6 +168,7 @@ def get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input
   my_decoder = decoder.Model(encoder_outputs, encoder_state, decoder_train_input, decoder_train_target, params, tf.estimator.ModeKeys.TRAIN, 'Decoder', reuse)
   encoder_loss = my_encoder.loss
   decoder_loss = my_decoder.loss
+  cross_entropy = decoder_loss
     
   total_loss = params['trade_off'] * encoder_loss + (1 - params['trade_off']) * decoder_loss + params['weight_decay'] * tf.add_n(
       [tf.nn.l2_loss(v) for v in tf.trainable_variables()])
@@ -180,7 +181,7 @@ def get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input
     train_op = opt.apply_gradients(
       zip(clipped_gradients, variables), global_step=global_step)
   
-  return total_loss, learning_rate, train_op, global_step
+  return cross_entropy, total_loss, learning_rate, train_op, global_step
 
 
 def get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, reuse=False):
@@ -194,11 +195,12 @@ def get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, de
   encoder_loss = my_encoder.loss
   decoder_loss = my_decoder.loss
   predict_value = my_encoder.predict_value
+  cross_entropy = decoder_loss
     
   total_loss = params['trade_off'] * encoder_loss + (1 - params['trade_off']) * decoder_loss + params['weight_decay'] * tf.add_n(
       [tf.nn.l2_loss(v) for v in tf.trainable_variables()])
 
-  return total_loss, predict_value, encoder_test_target
+  return cross_entropy, total_loss, predict_value, encoder_test_target
 
 
 def get_predict_ops(encoder_predict_input, params, reuse=False):
@@ -232,9 +234,9 @@ def train(params):
   with g.as_default():
     encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target = input_fn(params, 'train', params['data_dir'], params['batch_size'], None)
     encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target = input_fn(params, 'test', params['data_dir'], _NUM_SAMPLES['test'], None)
-    train_loss, learning_rate, train_op, global_step = get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target, params)
+    train_cross_entropy, train_loss, learning_rate, train_op, global_step = get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target, params)
     _log_variable_sizes(tf.trainable_variables(), 'Trainable Variables')
-    test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
+    test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
     saver = tf.train.Saver(max_to_keep=10)
     checkpoint_saver_hook = tf.train.CheckpointSaverHook(
     params['model_dir'], save_steps=params['batches_per_epoch'], saver=saver)
@@ -246,32 +248,36 @@ def train(params):
       start_time = time.time()
       while True:
         run_ops = [
+          train_cross_entropy,
           train_loss,
           learning_rate,
           train_op,
           global_step
         ]
-        train_loss_v, learning_rate_v, _, global_step_v = sess.run(run_ops)
+        train_cross_entropy_v, train_loss_v, learning_rate_v, _, global_step_v = sess.run(run_ops)
 
         epoch = global_step_v // params['batches_per_epoch'] 
         curr_time = time.time()
         if global_step_v % 100 == 0:
           log_string = "epoch={:<6d} ".format(epoch)
           log_string += "step={:<6d} ".format(global_step_v)
+          log_string += "cross_entropy={:<6d} ".format(train_cross_entropy_v)
           log_string += "loss={:<6f} ".format(train_loss_v)
           log_string += "learning_rate={:<8.4f} ".format(learning_rate_v)
           log_string += "mins={:<10.2f}".format((curr_time - start_time) / 60)
           tf.logging.info(log_string)
         if global_step_v % params['batches_per_epoch'] == 0:
           test_ops = [
-            test_loss, test_predict_value, test_ground_truth_value
+            test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value
           ]
           test_start_time = time.time()
           test_loss_list = []
+          test_cross_entropy_list = []
           test_predict_value_list = []
           test_ground_truth_value_list = []
           for _ in range(_NUM_SAMPLES['test'] // _NUM_SAMPLES['test']):
-            test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
+            test_cross_entropy_v, test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
+            test_cross_entropy_list.append(test_cross_entropy_v.flatten())
             test_loss_list.append(test_loss_v.flatten())
             test_predict_value_list.append(test_predict_value_v.flatten())
             test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
@@ -286,6 +292,7 @@ def train(params):
           log_string += "test loss={:<6f} ".format(np.mean(test_loss_list))
           log_string += "test pairwise accuracy={:<6f} ".format(pairwise_acc)
           log_string += "test mse={:<6f} ".format(mse)
+          log_string += "test cross_entropy={:<6d} ".format(np.mean(test_cross_entropy_list))
           log_string += "learning_rate={:<8.6f} ".format(learning_rate_v)
           log_string += "secs={:<10.2f}".format((test_time))
           tf.logging.info(log_string)
@@ -297,7 +304,7 @@ def test(params):
   g = tf.Graph()
   with g.as_default():
     encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target = input_fn(params, 'test', params['data_dir'], _NUM_SAMPLES['test'], None)
-    test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
+    test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
     _log_variable_sizes(tf.trainable_variables(), 'Trainable Variables')
     tf.logging.info('Starting Session')
     config = tf.ConfigProto(allow_soft_placement=True)
@@ -306,14 +313,16 @@ def test(params):
       start_time = time.time()
       while True:
         test_ops = [
-          test_loss, test_predict_value, test_ground_truth_value
+          test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value
         ]
         test_start_time = time.time()
+        test_cross_entropy_list = []
         test_loss_list = []
         test_predict_value_list = []
         test_ground_truth_value_list = []
         for _ in range(_NUM_SAMPLES['test'] // _NUM_SAMPLES['test']):
-          test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
+          test_cross_entropy_v, test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
+          test_cross_entropy_list.append(test_cross_entropy_v.flatten())
           test_loss_list.append(test_loss_v.flatten())
           test_predict_value_list.append(test_predict_value_v.flatten())
           test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
@@ -328,6 +337,7 @@ def test(params):
         log_string += "test loss={:<6f} ".format(np.mean(test_loss_list))
         log_string += "test pairwise accuracy={:<6f} ".format(pairwise_acc)
         log_string += "test mse={:<6f} ".format(mse)
+        log_string += "test cross_entropy=".format(np.mean(test_cross_entropy_list))
         log_string += "learning_rate={:<8.6f} ".format(learning_rate_v)
         log_string += "secs={:<10.2f}".format((test_time))
         tf.logging.info(log_string)
