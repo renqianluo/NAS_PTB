@@ -54,7 +54,7 @@ class Encoder(object):
       dtype=tf.float32,
       time_major=self.time_major,
       initial_state=initial_state)
-    x = tf.nn.l2_normalize(x,dim=-1)
+    x = tf.nn.l2_normalize(x, axis=-1)
     self.encoder_outputs = x
     self.encoder_state = state
     
@@ -62,7 +62,7 @@ class Encoder(object):
       x = tf.reduce_mean(x, axis=0)
     else:
       x = tf.reduce_mean(x, axis=1)
-    x = tf.nn.l2_normalize(x, dim=-1)
+    x = tf.nn.l2_normalize(x, axis=-1)
 
     self.arch_emb = x
     

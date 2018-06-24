@@ -268,7 +268,7 @@ def train(params):
           test_loss_list = []
           test_predict_value_list = []
           test_ground_truth_value_list = []
-          for _ in range(_NUM_IMAGES['test'] // _NUM_IMAGES['test']):
+          for _ in range(_NUM_SAMPLES['test'] // _NUM_SAMPLES['test']):
             test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
             test_loss_list.append(test_loss_v.flatten())
             test_predict_value_list.append(test_predict_value_v.flatten())
@@ -310,7 +310,7 @@ def test(params):
         test_loss_list = []
         test_predict_value_list = []
         test_ground_truth_value_list = []
-        for _ in range(_NUM_IMAGES['test'] // _NUM_IMAGES['test']):
+        for _ in range(_NUM_SAMPLES['test'] // _NUM_SAMPLES['test']):
           test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
           test_loss_list.append(test_loss_v.flatten())
           test_predict_value_list.append(test_predict_value_v.flatten())
@@ -420,6 +420,7 @@ def main(unparsed):
 
   if FLAGS.mode == 'train':
     params = get_params()
+    params['batches_per_epoch'] = math.ceil(_NUM_SAMPLES['train'] / params['batch_size'])
     with open(os.path.join(params['model_dir'], 'hparams.json'), 'w') as f:
       json.dump(params, f)
     train(params)  
