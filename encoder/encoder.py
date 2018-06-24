@@ -106,7 +106,7 @@ class Model(object):
     initializer = tf.orthogonal_initializer()
     #initializer = tf.random_uniform_initializer(-self.hidden_size**(-0.5), self.hidden_size**(-0.5))
     tf.get_variable_scope().set_initializer(initializer)
-    self.build_graph(scope=scope, reuse)
+    self.build_graph(scope, reuse)
 
   
   def build_graph(self, scope=None, reuse=None):
