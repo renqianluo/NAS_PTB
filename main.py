@@ -13,6 +13,7 @@ from decoder import decoder
 import six
 import json
 import collections
+import math
 
 _NUM_SAMPLES = {
   'train' : 10000,
