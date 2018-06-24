@@ -370,10 +370,10 @@ def predict(params):
       config=config, checkpoint_dir=params['model_dir']) as sess:
       while True:
         run_ops = [predict_value, sample_id, new_sample_id]
-        predict_value_v, sample_id, new_sample_id = sess.run(run_ops)
-        results.append(sample_id)
-        new_ids.append(new_sample_id)
-        perfs.append(perfs)
+        predict_value_v, sample_id_v, new_sample_id_v = sess.run(run_ops)
+        perfs.append(predict_value_v)
+        results.append(sample_id_v)
+        new_ids.append(new_sample_id_v)
     
     if FLAGS.predict_to_file:
       output_filename = predict_to_file
