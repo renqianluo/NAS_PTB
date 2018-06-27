@@ -320,13 +320,16 @@ def test(params):
       test_loss_list = []
       test_predict_value_list = []
       test_ground_truth_value_list = []
-      for _ in range(_NUM_SAMPLES['test'] // _NUM_SAMPLES['test']):
-      #while True:
-        test_cross_entropy_v, test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
-        test_cross_entropy_list.append(test_cross_entropy_v.flatten())
-        test_loss_list.append(test_loss_v.flatten())
-        test_predict_value_list.append(test_predict_value_v.flatten())
-        test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
+      #for _ in range(_NUM_SAMPLES['test'] // _NUM_SAMPLES['test']):
+      while True:
+        try:
+          test_cross_entropy_v, test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
+          test_cross_entropy_list.append(test_cross_entropy_v.flatten())
+          test_loss_list.append(test_loss_v.flatten())
+          test_predict_value_list.append(test_predict_value_v.flatten())
+          test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
+        except:
+          break
       predictions_list = np.array(test_predict_value_list).flatten()
       targets_list = np.array(test_ground_truth_value_list).flatten()
       mse = ((predictions_list -  targets_list) ** 2).mean(axis=0)
