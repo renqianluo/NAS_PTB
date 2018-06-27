@@ -238,7 +238,7 @@ def train(params):
     test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
     saver = tf.train.Saver(max_to_keep=10)
     checkpoint_saver_hook = tf.train.CheckpointSaverHook(
-    params['model_dir'], save_steps=params['batches_per_epoch'], saver=saver)
+    params['model_dir'], save_steps=params['batches_per_epoch']*params['eval_frequency'], saver=saver)
     hooks = [checkpoint_saver_hook]
     tf.logging.info('Starting Session')
     config = tf.ConfigProto(allow_soft_placement=True)
@@ -304,44 +304,44 @@ def train(params):
 def test(params):
   g = tf.Graph()
   with g.as_default():
-    encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target = input_fn(params, 'test', params['data_dir'], _NUM_SAMPLES['test'], None)
-    test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
+    encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target = input_fn(params, 'test', params['data_dir'], _NUM_SAMPLES['test'], 1)
+    test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, False)
     _log_variable_sizes(tf.trainable_variables(), 'Trainable Variables')
     tf.logging.info('Starting Session')
     config = tf.ConfigProto(allow_soft_placement=True)
     with tf.train.SingularMonitoredSession(
       config=config, checkpoint_dir=params['model_dir']) as sess:
       start_time = time.time()
-      while True:
-        test_ops = [
-          test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value
-        ]
-        test_start_time = time.time()
-        test_cross_entropy_list = []
-        test_loss_list = []
-        test_predict_value_list = []
-        test_ground_truth_value_list = []
-        for _ in range(_NUM_SAMPLES['test'] // _NUM_SAMPLES['test']):
-          test_cross_entropy_v, test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
-          test_cross_entropy_list.append(test_cross_entropy_v.flatten())
-          test_loss_list.append(test_loss_v.flatten())
-          test_predict_value_list.append(test_predict_value_v.flatten())
-          test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
-        predictions_list = np.array(test_predict_value_list)
-        targets_list = np.array(test_ground_truth_value_list)
-        mse = ((predictions_list -  targets_list) ** 2).mean(axis=0)
-        pairwise_acc = pairwise_accuracy(targets_list, predictions_list)
-        test_time = time.time() - test_start_time
-        log_string =  "Evaluation on test data\n"
-        log_string += "epoch={:<6d} ".format(epoch)
-        log_string += "step={:<6d} ".format(global_step_v)
-        log_string += "test loss={:<6f} ".format(np.mean(test_loss_list))
-        log_string += "test pairwise accuracy={:<6f} ".format(pairwise_acc)
-        log_string += "test mse={:<6f} ".format(mse)
-        log_string += "test cross_entropy={:.<6f} ".format(np.mean(test_cross_entropy_list))
-        log_string += "learning_rate={:<8.6f} ".format(learning_rate_v)
-        log_string += "secs={:<10.2f}".format((test_time))
-        tf.logging.info(log_string)
+      test_ops = [
+        test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value
+      ]
+      test_start_time = time.time()
+      test_cross_entropy_list = []
+      test_loss_list = []
+      test_predict_value_list = []
+      test_ground_truth_value_list = []
+      for _ in range(_NUM_SAMPLES['test'] // _NUM_SAMPLES['test']):
+      #while True:
+        test_cross_entropy_v, test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
+        test_cross_entropy_list.append(test_cross_entropy_v.flatten())
+        test_loss_list.append(test_loss_v.flatten())
+        test_predict_value_list.append(test_predict_value_v.flatten())
+        test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
+      predictions_list = np.array(test_predict_value_list).flatten()
+      targets_list = np.array(test_ground_truth_value_list).flatten()
+      mse = ((predictions_list -  targets_list) ** 2).mean(axis=0)
+      pairwise_acc = pairwise_accuracy(targets_list, predictions_list)
+      test_time = time.time() - test_start_time
+      log_string =  "Evaluation on test data\n"
+      #log_string += "epoch={:<6d} ".format(epoch)
+      #log_string += "step={:<6d} ".format(global_step_v)
+      log_string += "test loss={:<6f} ".format(np.mean(test_loss_list))
+      log_string += "test pairwise accuracy={:<6f} ".format(pairwise_acc)
+      log_string += "test mse={:<6f} ".format(mse)
+      log_string += "test cross_entropy={:.<6f} ".format(np.mean(test_cross_entropy_list))
+      #log_string += "learning_rate={:<8.6f} ".format(learning_rate_v)
+      log_string += "secs={:<10.2f}".format((test_time))
+      tf.logging.info(log_string)
 
 def predict_input_fn(predict_from_file):
   dataset = tf.data.TextLineDataset(predict_from_file)
@@ -424,10 +424,7 @@ def pairwise_accuracy(la, lb):
   count = 0
   for i in range(N):
     for j in range(i+1, N):
-      #if abs(la[i]-la[j]) <= 0.05 and abs(lb[i]-lb[j]) <=0.05:
-      #  count += 1
-      #  continue
-      if la[i] > la[j] and lb[i] > lb[j]:
+      if la[i] >= la[j] and lb[i] >= lb[j]:
         count += 1
       if la[i] < la[j] and lb[i] < lb[j]:
         count += 1
@@ -460,6 +457,8 @@ def main(unparsed):
       raise ValueError('No hparams.json found in {0}'.format(FLAGS.model_dir))
     with open(os.path.join(FLAGS.model_dir, 'hparams.json'), 'r') as f:
       params = json.load(f)
+      params['model_dir'] = FLAGS.model_dir
+      params['data_dir'] = FLAGS.data_dir
     test(params)
 
   elif FLAGS.mode == 'predict':
