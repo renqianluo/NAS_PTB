@@ -49,6 +49,7 @@ parser.add_argument('--decoder_vocab_size', type=int, default=21)
 parser.add_argument('--trade_off', type=float, default=0.5)
 parser.add_argument('--train_epochs', type=int, default=1000)
 parser.add_argument('--eval_frequency', type=int, default=10)
+parser.add_argument('--save_frequency', type=int, default=10)
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--lr', type=float, default=1.0)
 parser.add_argument('--optimizer', type=str, default='adam')
@@ -239,7 +240,7 @@ def train(params):
     test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
     saver = tf.train.Saver(max_to_keep=10)
     checkpoint_saver_hook = tf.train.CheckpointSaverHook(
-    params['model_dir'], save_steps=params['batches_per_epoch']*params['eval_frequency'], saver=saver)
+    params['model_dir'], save_steps=params['batches_per_epoch']*params['save_frequency'], saver=saver)
     hooks = [checkpoint_saver_hook]
     tf.logging.info('Starting Session')
     config = tf.ConfigProto(allow_soft_placement=True)
