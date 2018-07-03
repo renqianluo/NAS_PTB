@@ -128,7 +128,6 @@ class Model(object):
     return res['arch_emb'], res['predict_value'], res['encoder_outputs'], res['encoder_state']
 
   def compute_loss(self):
-    weights = 1 - tf.cast(tf.equal(self.y, -1.0), tf.float32)
     if self.weighted_loss:
       weights = tf.nn.softmax(tf.squeeze(1 - self.y), axis=0) * self.batch_size
     else:
