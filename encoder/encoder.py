@@ -69,12 +69,12 @@ class Encoder(object):
     for i in range(self.mlp_num_layers):
       name = 'mlp_{}'.format(i)
       x = tf.layers.dense(x, self.mlp_hidden_size, activation=tf.nn.relu, name=name)
-      
+      """ 
       x = tf.layers.batch_normalization(
         x, axis=1,
         momentum=_BATCH_NORM_DECAY, epsilon=_BATCH_NORM_EPSILON,
         center=True, scale=True, training=is_training, fused=True
-        )
+        )"""
       x = tf.layers.dropout(x, self.mlp_dropout, training=is_training)
     self.predict_value = tf.layers.dense(x, 1, activation=tf.sigmoid, name='regression')
     return {
@@ -133,7 +133,7 @@ class Model(object):
       alpha = tf.nn.softmax(alpha)
       weights = tf.expand_dims(alpha * tf.cast(self.batch_size, dtype=tf.float32), axis=-1)
     else:
-      weights = None
+      weights = 1.0
     mean_squared_error = tf.losses.mean_squared_error(
       labels=self.y, 
       predictions=self.predict_value,
