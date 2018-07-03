@@ -129,7 +129,9 @@ class Model(object):
 
   def compute_loss(self):
     if self.weighted_loss:
-      weights = tf.nn.softmax(tf.squeeze(1 - self.y), axis=0) * self.batch_size
+      alpha = tf.squeeze(1 - self.y)
+      alpha = tf.nn.softmax(alpha)
+      weights = tf.expand_dims(alpha * tf.cast(self.batch_size, dtype=tf.float32), axis=-1)
     else:
       weights = None
     mean_squared_error = tf.losses.mean_squared_error(
