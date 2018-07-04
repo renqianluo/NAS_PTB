@@ -27,6 +27,7 @@ class Encoder(object):
   def build_encoder(self, x, batch_size, is_training):
     self.batch_size = batch_size
     assert x.shape.ndims == 2, '[batch_size, length]'
+    #with tf.control_dependencies([tf.Print(self.W_emb, [tf.constant('W_emb'), self.W_emb], summarize=2000)]):
     x = tf.gather(self.W_emb, x)
     if self.source_length != self.encoder_length:
       tf.logging.info('Concacting source sequence along depth')
@@ -48,6 +49,7 @@ class Encoder(object):
       cell = cell_list[0]
     else:
       cell = tf.contrib.rnn.MultiRNNCell(cell_list)
+    
     initial_state = cell.zero_state(batch_size, dtype=tf.float32)
     x, state = tf.nn.dynamic_rnn(cell, 
       x, 
@@ -104,8 +106,8 @@ class Model(object):
       self.params['encoder_dropout'] = 0.0
       self.params['encoder_mlp_dropout'] = 0.0
 
-    initializer = tf.orthogonal_initializer()
-    #initializer = tf.random_uniform_initializer(-self.hidden_size**(-0.5), self.hidden_size**(-0.5))
+    #initializer = tf.orthogonal_initializer()
+    initializer = tf.random_uniform_initializer(-0.1, 0.1)
     tf.get_variable_scope().set_initializer(initializer)
     self.build_graph(scope, reuse)
 

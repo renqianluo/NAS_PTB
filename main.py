@@ -176,14 +176,24 @@ def get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input
       [tf.nn.l2_loss(v) for v in tf.trainable_variables()])
 
   tf.summary.scalar('training_loss', total_loss)
+
+  var_list = tf.trainable_variables()
+  print_ops = []
+  for var in var_list:
+    print_ops.append(tf.Print(var, [tf.constant(var.name), tf.nn.l2_loss(var)]))
+
   update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-  with tf.control_dependencies(update_ops):
-    gradients, variables = zip(*opt.compute_gradients(total_loss))
-    clipped_gradients, _ = tf.clip_by_global_norm(gradients, params['max_gradient_norm'])
-    train_op = opt.apply_gradients(
-      zip(clipped_gradients, variables), global_step=global_step)
+  tf.logging.info(update_ops)
+  with tf.control_dependencies(print_ops):
+    with tf.control_dependencies(update_ops):
+      gradients, variables = zip(*opt.compute_gradients(total_loss))
+      grad_norm = tf.global_norm(gradients)
+      clipped_gradients, _ = tf.clip_by_global_norm(gradients, params['max_gradient_norm'])
+      new_grad_norm = tf.global_norm(clipped_gradients)
+      train_op = opt.apply_gradients(
+        zip(clipped_gradients, variables), global_step=global_step)
   
-  return mse, cross_entropy, total_loss, learning_rate, train_op, global_step
+  return mse, cross_entropy, total_loss, learning_rate, train_op, global_step, grad_norm, new_grad_norm
 
 
 def get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, reuse=False):
@@ -235,7 +245,7 @@ def train(params):
   with g.as_default():
     encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target = input_fn(params, 'train', params['data_dir'], params['batch_size'], None)
     encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target = input_fn(params, 'test', params['data_dir'], _NUM_SAMPLES['test'], None)
-    train_mse, train_cross_entropy, train_loss, learning_rate, train_op, global_step = get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target, params)
+    train_mse, train_cross_entropy, train_loss, learning_rate, train_op, global_step, grad_norm, new_grad_norm = get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target, params)
     _log_variable_sizes(tf.trainable_variables(), 'Trainable Variables')
     test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
     saver = tf.train.Saver(max_to_keep=10)
@@ -254,19 +264,23 @@ def train(params):
           train_loss,
           learning_rate,
           train_op,
-          global_step
+          global_step,
+          grad_norm,
+          new_grad_norm
         ]
-        train_mse_v, train_cross_entropy_v, train_loss_v, learning_rate_v, _, global_step_v = sess.run(run_ops)
+        train_mse_v, train_cross_entropy_v, train_loss_v, learning_rate_v, _, global_step_v, gn_v, new_gn_v = sess.run(run_ops)
 
         epoch = global_step_v // params['batches_per_epoch'] 
         curr_time = time.time()
-        if global_step_v % 100 == 0:
+        if global_step_v % 1 == 0:
           log_string = "epoch={:<6d} ".format(epoch)
           log_string += "step={:<6d} ".format(global_step_v)
           log_string += "mse={:<6f} ".format(train_mse_v)
           log_string += "cross_entropy={:<6f} ".format(train_cross_entropy_v)
           log_string += "loss={:<6f} ".format(train_loss_v)
           log_string += "learning_rate={:<8.4f} ".format(learning_rate_v)
+          log_string += "|gn|={:<8.4f} ".format(gn_v)
+          log_string += "|new_gn|={:<8.4f} ".format(new_gn_v)
           log_string += "mins={:<10.2f}".format((curr_time - start_time) / 60)
           tf.logging.info(log_string)
         if global_step_v % (params['batches_per_epoch'] * params['eval_frequency']) == 0:
@@ -440,6 +454,7 @@ def pairwise_accuracy(la, lb):
 def main(unparsed):
   # Using the Winograd non-fused algorithms provides a small performance boost.
   os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
+  tf.set_random_seed(331)
 
   with open(os.path.join(FLAGS.data_dir, 'encoder.train.input'), 'r') as f:
     lines = f.read().splitlines()
