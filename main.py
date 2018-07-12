@@ -60,6 +60,7 @@ parser.add_argument('--attention', action='store_true', default=False)
 parser.add_argument('--max_gradient_norm', type=float, default=5.0)
 parser.add_argument('--beam_width', type=int, default=0)
 parser.add_argument('--time_major', action='store_true', default=False)
+parser.add_argument('--wn', action='store_true', default=False)
 parser.add_argument('--predict_from_file', type=str, default=None)
 parser.add_argument('--predict_to_file', type=str, default=None)
 parser.add_argument('--predict_beam_width', type=int, default=0)
@@ -161,7 +162,6 @@ def get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input
 
   my_encoder = encoder.Model(encoder_train_input, encoder_train_target, params, tf.estimator.ModeKeys.TRAIN, 'Encoder', reuse)
   encoder_outputs = my_encoder.encoder_outputs
-  #encoder_state = my_encoder.encoder_state
   encoder_state = my_encoder.arch_emb
   encoder_state.set_shape([None, params['decoder_hidden_size']])
   encoder_state = tf.contrib.rnn.LSTMStateTuple(encoder_state, encoder_state)
@@ -178,22 +178,16 @@ def get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input
   tf.summary.scalar('training_loss', total_loss)
 
   var_list = tf.trainable_variables()
-  print_ops = []
-  for var in var_list:
-    print_ops.append(tf.Print(var, [tf.constant(var.name), tf.nn.l2_loss(var)]))
 
   update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-  tf.logging.info(update_ops)
-  with tf.control_dependencies(print_ops):
-    with tf.control_dependencies(update_ops):
-      gradients, variables = zip(*opt.compute_gradients(total_loss))
-      grad_norm = tf.global_norm(gradients)
-      clipped_gradients, _ = tf.clip_by_global_norm(gradients, params['max_gradient_norm'])
-      new_grad_norm = tf.global_norm(clipped_gradients)
-      train_op = opt.apply_gradients(
-        zip(clipped_gradients, variables), global_step=global_step)
+  with tf.control_dependencies(update_ops):
+    gradients, variables = zip(*opt.compute_gradients(total_loss))
+    grad_norm = tf.global_norm(gradients)
+    clipped_gradients, _ = tf.clip_by_global_norm(gradients, params['max_gradient_norm'])
+    train_op = opt.apply_gradients(
+      zip(clipped_gradients, variables), global_step=global_step)
   
-  return mse, cross_entropy, total_loss, learning_rate, train_op, global_step, grad_norm, new_grad_norm
+  return mse, cross_entropy, total_loss, learning_rate, train_op, global_step, grad_norm 
 
 
 def get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, reuse=False):
@@ -245,17 +239,21 @@ def train(params):
   with g.as_default():
     encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target = input_fn(params, 'train', params['data_dir'], params['batch_size'], None)
     encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target = input_fn(params, 'test', params['data_dir'], _NUM_SAMPLES['test'], None)
-    train_mse, train_cross_entropy, train_loss, learning_rate, train_op, global_step, grad_norm, new_grad_norm = get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target, params)
+    encoder_test_input2, encoder_test_target2, decoder_test_input2, decoder_test_target2 = input_fn(params, 'train', params['data_dir'], _NUM_SAMPLES['train'], None)
+    train_mse, train_cross_entropy, train_loss, learning_rate, train_op, global_step, grad_norm = get_train_ops(encoder_train_input, encoder_train_target, decoder_train_input, decoder_train_target, params)
     _log_variable_sizes(tf.trainable_variables(), 'Trainable Variables')
     test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value = get_test_ops(encoder_test_input, encoder_test_target, decoder_test_input, decoder_test_target, params, True)
+    test_cross_entropy2, test_loss2, test_predict_value2, test_ground_truth_value2 = get_test_ops(encoder_test_input2, encoder_test_target2, decoder_test_input2, decoder_test_target2, params, True)
     saver = tf.train.Saver(max_to_keep=10)
     checkpoint_saver_hook = tf.train.CheckpointSaverHook(
     params['model_dir'], save_steps=params['batches_per_epoch']*params['save_frequency'], saver=saver)
     hooks = [checkpoint_saver_hook]
+    merged_summary = tf.summary.merge_all()
     tf.logging.info('Starting Session')
     config = tf.ConfigProto(allow_soft_placement=True)
     with tf.train.SingularMonitoredSession(
       config=config, hooks=hooks, checkpoint_dir=params['model_dir']) as sess:
+      writer =  tf.summary.FileWriter(params['model_dir'],sess.graph)
       start_time = time.time()
       while True:
         run_ops = [
@@ -266,24 +264,54 @@ def train(params):
           train_op,
           global_step,
           grad_norm,
-          new_grad_norm
+          merged_summary,
         ]
-        train_mse_v, train_cross_entropy_v, train_loss_v, learning_rate_v, _, global_step_v, gn_v, new_gn_v = sess.run(run_ops)
+        train_mse_v, train_cross_entropy_v, train_loss_v, learning_rate_v, _, global_step_v, gn_v,summary = sess.run(run_ops)
+    
+        writer.add_summary(summary,global_step_v)
 
         epoch = global_step_v // params['batches_per_epoch'] 
         curr_time = time.time()
-        if global_step_v % 1 == 0:
+        if global_step_v % 100 == 0:
           log_string = "epoch={:<6d} ".format(epoch)
           log_string += "step={:<6d} ".format(global_step_v)
-          log_string += "mse={:<6f} ".format(train_mse_v)
+          log_string += "se={:<6f} ".format(train_mse_v)
           log_string += "cross_entropy={:<6f} ".format(train_cross_entropy_v)
           log_string += "loss={:<6f} ".format(train_loss_v)
           log_string += "learning_rate={:<8.4f} ".format(learning_rate_v)
           log_string += "|gn|={:<8.4f} ".format(gn_v)
-          log_string += "|new_gn|={:<8.4f} ".format(new_gn_v)
           log_string += "mins={:<10.2f}".format((curr_time - start_time) / 60)
           tf.logging.info(log_string)
         if global_step_v % (params['batches_per_epoch'] * params['eval_frequency']) == 0:
+          test_ops = [
+            test_cross_entropy2, test_loss2, test_predict_value2, test_ground_truth_value2
+          ]
+          test_start_time = time.time()
+          test_loss_list = []
+          test_cross_entropy_list = []
+          test_predict_value_list = []
+          test_ground_truth_value_list = []
+          for _ in range(_NUM_SAMPLES['train'] // _NUM_SAMPLES['train']):
+            test_cross_entropy_v, test_loss_v, test_predict_value_v, test_ground_truth_value_v = sess.run(test_ops)
+            test_cross_entropy_list.append(test_cross_entropy_v.flatten())
+            test_loss_list.append(test_loss_v.flatten())
+            test_predict_value_list.append(test_predict_value_v.flatten())
+            test_ground_truth_value_list.append(test_ground_truth_value_v.flatten())   
+          predictions_list = np.array(test_predict_value_list).flatten()
+          targets_list = np.array(test_ground_truth_value_list).flatten()
+          mse = ((predictions_list -  targets_list) ** 2).mean(axis=0)
+          pairwise_acc = pairwise_accuracy(targets_list, predictions_list)
+          test_time = time.time() - test_start_time
+          log_string =  "Evaluation on training data\n"
+          log_string += "epoch={:<6d} ".format(epoch)
+          log_string += "step={:<6d} ".format(global_step_v)
+          log_string += "training loss={:<6f} ".format(np.mean(test_loss_list))
+          log_string += "training pairwise accuracy={:<6f} ".format(pairwise_acc)
+          log_string += "training se={:<6f} ".format(mse)
+          log_string += "training cross_entropy={:<6f} ".format(np.mean(test_cross_entropy_list))
+          log_string += "learning_rate={:<8.6f} ".format(learning_rate_v)
+          log_string += "secs={:<10.2f}".format((test_time))
+          tf.logging.info(log_string)
           test_ops = [
             test_cross_entropy, test_loss, test_predict_value, test_ground_truth_value
           ]

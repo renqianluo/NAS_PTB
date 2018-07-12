@@ -5,7 +5,7 @@ from __future__ import print_function
 import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.contrib.seq2seq.python.ops.basic_decoder import BasicDecoderOutput
-
+import utils
 
 class AttentionMultiCell(tf.nn.rnn_cell.MultiRNNCell):
   """A MultiCell with GNMT attention style."""
@@ -62,9 +62,10 @@ class AttentionMultiCell(tf.nn.rnn_cell.MultiRNNCell):
     return cur_inp, tuple(new_states)
 
 
-class MyDense(tf.layers.Dense):
+class MyWeightNormDense(utils.WeightNormDense):
   def __init__(self,
       units,
+      norm=False,
       activation=None,
       use_bias=True,
       kernel_initializer=None,
@@ -77,8 +78,9 @@ class MyDense(tf.layers.Dense):
       trainable=True,
       name=None,
       **kwargs):
-    super(MyDense, self).__init__(
+    super(MyWeightNormDense, self).__init__(
       units,
+      norm=norm,
       activation=None,
       use_bias=True,
       kernel_initializer=None,
@@ -109,7 +111,8 @@ class MyDense(tf.layers.Dense):
       outputs = self.activation(outputs)  # pylint: disable=not-callable
 
     def _node_index(x):
-      index = tf.cast((time + 1) / 2, dtype=tf.int32) + 1
+      #index = tf.cast((time + 1) / 2, dtype=tf.int32) + 1
+      index = tf.cast(time / 2, dtype=tf.int32)+1
       assert x.shape.ndims == 2
       ones = tf.ones_like(x)[:, :index]
       zeros = tf.zeros_like(x)[:, index:]
@@ -125,7 +128,8 @@ class MyDense(tf.layers.Dense):
   
     if time is not None: #predicting
       outputs = tf.cond(
-        tf.equal(tf.mod(time, 2), tf.constant(1)),
+        #tf.equal(tf.mod(time, 2), tf.constant(1)),
+        tf.equal(tf.mod(time, 2), tf.constant(0)),
         lambda : _node_index(outputs),
         lambda : _function(outputs))
     return outputs
@@ -165,6 +169,7 @@ class Decoder():
     self.beam_width = params['predict_beam_width']
     self.attn = params['attention']
     self.pass_hidden_state = params.get('pass_hidden_state', True)
+    self.wn = params['wn']
     self.mode = mode
 
   def build_decoder(self, encoder_outputs, encoder_state, target_input, batch_size):
@@ -271,9 +276,9 @@ class Decoder():
 
     cell_list = []
     for i in range(self.num_layers):
-      lstm_cell = tf.contrib.rnn.LSTMCell(
+      lstm_cell = utils.WeightNormLSTMCell(
         self.hidden_size,
-        initializer=tf.orthogonal_initializer())
+        norm=self.wn)
       lstm_cell = tf.contrib.rnn.DropoutWrapper(
         lstm_cell, 
         output_keep_prob=1-self.dropout)
@@ -355,15 +360,13 @@ class Model(object):
     self.time_major = params['time_major']
     self.hidden_size = params['decoder_hidden_size']
     self.weight_decay = params['weight_decay']
+    self.wn = params['wn']
     self.is_traing = mode == tf.estimator.ModeKeys.TRAIN
     if not self.is_traing:
       self.params['decoder_dropout'] = 0.0
 
     # Initializer
     #initializer = tf.orthogonal_initializer()
-    initializer = tf.random_uniform_initializer(-0.08, 0.08)
-    tf.get_variable_scope().set_initializer(initializer)
-
     ## Build graph
     self.build_graph(scope, reuse)
 
@@ -371,12 +374,14 @@ class Model(object):
     tf.logging.info("# creating %s graph ..." % self.mode)
     ## Decoder
     with tf.variable_scope(scope, reuse=reuse):
+      initializer = tf.random_uniform_initializer(-0.10, 0.10)
+      tf.get_variable_scope().set_initializer(initializer)
       # Embeddings
       self.W_emb = tf.get_variable('W_emb', [self.vocab_size, self.hidden_size])
       # Projection
       with tf.variable_scope("decoder/output_projection"):
-        self.output_layer = MyDense(
-            self.vocab_size, use_bias=False, name="output_projection")
+        self.output_layer = MyWeightNormDense(
+            self.vocab_size, use_bias=False, name="output_projection", norm=self.wn)
       self.logits, self.sample_id, self.final_context_state = self.build_decoder()
 
       ## Loss
@@ -405,6 +410,7 @@ class Model(object):
     crossent = tf.losses.sparse_softmax_cross_entropy(
         labels=target_output, logits=self.logits)
     tf.identity(crossent, 'cross_entropy')
+    tf.summary.scalar('cross_entropy', crossent)
     self.loss = crossent
     total_loss = crossent + self.weight_decay * tf.add_n(
       [tf.nn.l2_loss(v) for v in tf.trainable_variables()])

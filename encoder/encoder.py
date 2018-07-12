@@ -2,8 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import random
 import tensorflow as tf
+import utils
 
 _BATCH_NORM_DECAY = 0.9
 _BATCH_NORM_EPSILON = 1e-5
@@ -24,23 +24,24 @@ class Encoder(object):
     self.time_major = params['time_major']
     self.W_emb = W_emb
     self.mode = mode
+    self.wn = params['wn']
   def build_encoder(self, x, batch_size, is_training):
     self.batch_size = batch_size
     assert x.shape.ndims == 2, '[batch_size, length]'
-    #with tf.control_dependencies([tf.Print(self.W_emb, [tf.constant('W_emb'), self.W_emb], summarize=2000)]):
     x = tf.gather(self.W_emb, x)
     if self.source_length != self.encoder_length:
       tf.logging.info('Concacting source sequence along depth')
-      assert self.source_length == 2*self.encoder_length - 1
-      padding = tf.zeros([batch_size, 1, self.emb_size], dtype=tf.float32)
-      x = tf.concat([padding, x], axis=1)
+      assert self.source_length == 2*self.encoder_length #- 1
+      #padding = tf.zeros([batch_size, 1, self.emb_size], dtype=tf.float32)
+      #x = tf.concat([padding, x], axis=1)
       x = tf.reshape(x, [batch_size, self.encoder_length, 2*self.emb_size])
     if self.time_major:
       x = tf.transpose(x, [1,0,2])
     cell_list = []
     for i in range(self.num_layers):
-      lstm_cell = tf.contrib.rnn.LSTMCell(
-        self.hidden_size)
+      lstm_cell = utils.WeightNormLSTMCell(
+        self.hidden_size,
+        norm=self.wn)
       lstm_cell = tf.contrib.rnn.DropoutWrapper(
         lstm_cell, 
         output_keep_prob=1-self.dropout)
@@ -56,7 +57,7 @@ class Encoder(object):
       dtype=tf.float32,
       time_major=self.time_major,
       initial_state=initial_state)
-    x = tf.nn.l2_normalize(x, axis=-1)
+    x = tf.nn.l2_normalize(x, dim=-1)
     self.encoder_outputs = x
     self.encoder_state = state
     
@@ -64,13 +65,14 @@ class Encoder(object):
       x = tf.reduce_mean(x, axis=0)
     else:
       x = tf.reduce_mean(x, axis=1)
-    x = tf.nn.l2_normalize(x, axis=-1)
+
+    x = tf.nn.l2_normalize(x, dim=-1)
 
     self.arch_emb = x
     
     for i in range(self.mlp_num_layers):
       name = 'mlp_{}'.format(i)
-      x = tf.layers.dense(x, self.mlp_hidden_size, activation=tf.nn.relu, name=name)
+      x = utils.weight_norm_dense(x, self.mlp_hidden_size, activation=tf.nn.relu, name=name, norm=self.wn)
       """ 
       x = tf.layers.batch_normalization(
         x, axis=1,
@@ -78,7 +80,7 @@ class Encoder(object):
         center=True, scale=True, training=is_training, fused=True
         )"""
       x = tf.layers.dropout(x, self.mlp_dropout, training=is_training)
-    self.predict_value = tf.layers.dense(x, 1, activation=tf.sigmoid, name='regression')
+    self.predict_value = utils.weight_norm_dense(x, 1, activation=tf.sigmoid, name='regression', norm=self.wn)
     return {
       'arch_emb' : self.arch_emb,
       'predict_value' : self.predict_value,
@@ -107,15 +109,14 @@ class Model(object):
       self.params['encoder_mlp_dropout'] = 0.0
 
     #initializer = tf.orthogonal_initializer()
-    initializer = tf.random_uniform_initializer(-0.1, 0.1)
-    tf.get_variable_scope().set_initializer(initializer)
     self.build_graph(scope, reuse)
 
-  
   def build_graph(self, scope=None, reuse=False):
     tf.logging.info("# creating %s graph ..." % self.mode)
     # Encoder
     with tf.variable_scope(scope, reuse=reuse):
+      initializer = tf.random_uniform_initializer(-0.1, 0.1)
+      tf.get_variable_scope().set_initializer(initializer)
       self.W_emb = tf.get_variable('W_emb', [self.vocab_size, self.emb_size])
       self.arch_emb, self.predict_value, self.encoder_outputs, self.encoder_state = self.build_encoder()
       if self.mode != tf.estimator.ModeKeys.PREDICT:
@@ -135,7 +136,7 @@ class Model(object):
       alpha = tf.nn.softmax(alpha)
       weights = tf.expand_dims(alpha * tf.cast(self.batch_size, dtype=tf.float32), axis=-1)
     else:
-      weights = 1.0
+      weights = 1 - tf.cast(tf.equal(self.y, -1.0), tf.float32)
     mean_squared_error = tf.losses.mean_squared_error(
       labels=self.y, 
       predictions=self.predict_value,
