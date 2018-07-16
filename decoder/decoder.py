@@ -112,7 +112,7 @@ class MyWeightNormDense(utils.WeightNormDense):
 
     def _node_index(x):
       #index = tf.cast((time + 1) / 2, dtype=tf.int32) + 1
-      index = tf.cast(time / 2, dtype=tf.int32)+1
+      index = tf.cast(time / 2, dtype=tf.int32)+2
       assert x.shape.ndims == 2
       ones = tf.ones_like(x)[:, :index]
       zeros = tf.zeros_like(x)[:, index:]
